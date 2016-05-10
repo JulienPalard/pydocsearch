@@ -1,6 +1,9 @@
-# PyDocSearch
+PyDocSearch
+===========
 
 A simple Python module to search in Python Documentation.
+
+.. code:: pycon
 
     >>> import pydocsearch
     >>> pydocsearch.search('lambda')
