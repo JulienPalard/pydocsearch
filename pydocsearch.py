@@ -5,7 +5,10 @@
 
 import re
 import requests
-from functools import lru_cache
+try:
+    from functools import lru_cache
+except ImportError:
+    from functools32 import lru_cache
 
 
 @lru_cache(maxsize=16)
