@@ -55,6 +55,17 @@ def search(keyword):
     return index.get(keyword)
 
 
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='Find a docs.python.org URL.')
+    parser.add_argument('--test', action='store_true')
+    parser.add_argument('keyword', nargs='?')
+    args = parser.parse_args()
+    if args.test:
+        import doctest
+        doctest.testmod()
+    else:
+        print(search(args.keyword))
+
 if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
+    main()
