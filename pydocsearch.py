@@ -12,7 +12,7 @@ except ImportError:
 
 
 @lru_cache(maxsize=16)
-def fetch_index(doc_url='https://docs.python.org/3.5/'):
+def fetch_index(version='3.5'):
     """Download and parses a genindex-all.html to relevant map of
     keyword -> URL.
 
@@ -30,6 +30,7 @@ def fetch_index(doc_url='https://docs.python.org/3.5/'):
     'urllib.request.FTPHandler' is also known as 'FTPHandler'.
 
     """
+    doc_url = 'https://docs.python.org/{}/'.format(version)
     genindex_text = requests.get(doc_url + 'genindex-all.html').text
     index = {}
     links = re.findall('href="(.+?#.+?)"', genindex_text)
@@ -51,7 +52,7 @@ def fetch_index(doc_url='https://docs.python.org/3.5/'):
     return dict([(key, doc_url + value) for key, value in index.items()])
 
 
-def search(keyword):
+def search(keyword, version='3.5'):
     """
     Search for a keyword in Python documentation.
 
@@ -60,21 +61,29 @@ def search(keyword):
     >>> search('exit')
     'https://docs.python.org/3.5/library/sys.html#sys.exit'
     """
-    index = fetch_index()
-    return index.get(keyword)
+    return fetch_index(version).get(keyword)
 
 
 def main():
+    def version(argument):
+        if re.match('^[0-9.]+$', argument) is None:
+            raise ValueError("Argument does not look like a version.")
+        return argument
+
     import argparse
     parser = argparse.ArgumentParser(description='Find a docs.python.org URL.')
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--version', default='3.5', type=version)
     parser.add_argument('keyword', nargs='?')
     args = parser.parse_args()
     if args.test:
         import doctest
         doctest.testmod()
     else:
-        print(search(args.keyword))
+        if args.keyword is None:
+            parser.print_help()
+            exit(1)
+        print(search(args.keyword, args.version))
 
 if __name__ == '__main__':
     main()
