@@ -33,13 +33,22 @@ def fetch_index(doc_url='https://docs.python.org/3.5/'):
     genindex_text = requests.get(doc_url + 'genindex-all.html').text
     index = {}
     links = re.findall('href="(.+?#.+?)"', genindex_text)
+
+    def propose_link(keyword, doc_link):
+        """Always get the shortest doc_link.
+        """
+        if keyword not in index or len(doc_link) < len(index[keyword]):
+            index[keyword] = doc_link
+
     for link in links:
         url, anchor = link.split('#')
-        after_last_dot = anchor.split('.')[-1]
-        after_last_dash = anchor.split('.')[-1].split('-')[-1]
-        for key in (anchor, after_last_dot, after_last_dash):
-            index[key] = doc_url + min((index.get(key, link), link), key=len)
-    return index
+        propose_link(anchor, link)
+        propose_link(anchor.split('.')[-1], link)
+        propose_link(anchor.split('.')[-1].split('-')[-1], link)
+        page_name_match = re.search(r'(\w+)\.html', url)
+        if page_name_match is not None:
+            propose_link(page_name_match.group(1), url)
+    return dict([(key, doc_url + value) for key, value in index.items()])
 
 
 def search(keyword):
