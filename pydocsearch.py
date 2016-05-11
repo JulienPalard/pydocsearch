@@ -87,8 +87,8 @@ class PydocIndex:
         doc_url = 'https://docs.python.org/{}/'.format(version)
         pydoc_index = cls(doc_url)
         genindex_text = requests.get(doc_url + 'genindex-all.html').text
-        links = re.findall('href="(.+?#.+?)"', genindex_text)
-        for link in links:
+        links = re.findall('href="(.+?#.+?)">([^<]+)</a>', genindex_text)
+        for (link, text) in links:
             url, anchor = link.split('#')
             anchor_chunks = re.split(r'\W', anchor)
             for chunks in ['.'.join(keywords[-i-1:]) for i, keywords in
@@ -97,6 +97,7 @@ class PydocIndex:
             page_name_match = re.search(r'(\w+)\.html', url)
             if page_name_match is not None:
                 pydoc_index.get_or_create_entry(page_name_match.group(1)).register(url)
+            pydoc_index.get_or_create_entry(text).register(link)
         return pydoc_index
 
     def search(self, keyword):
