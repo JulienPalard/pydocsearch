@@ -4,52 +4,106 @@
 """
 
 import re
+import math
 import requests
+from collections import defaultdict
 try:
     from functools import lru_cache
 except ImportError:
     from functools32 import lru_cache
 
 
-@lru_cache(maxsize=16)
-def fetch_index(version='3.5'):
-    """Download and parses a genindex-all.html to relevant map of
-    keyword -> URL.
+class PydocIndexEntry:
+    weights_from_number_of_visitors = {
+        'functions.html': 1,
+        'glossary.html': 1,
+        'stdtypes.html': .9,
+        'string.html': .8,
+        're.html': .7,
+        'datetime.html': .6,
+        'builtins.html': .5,
+        'exceptions.html': .1}
 
-    Idea is to get the shortest (generaly shortest is more releavant,
-    typically:
-    'wait':
-       'library/asyncio-subprocess.html#asyncio.asyncio.subprocess.Process.wait'
-    vs
-    'wait': 'library/os.html#os.wait'
+    def __init__(self, keyword):
+        self.keyword = keyword
+        self.links = {}
+        self.best_link = None
 
-    We're scanning only for HTML anchors, which are relevant keywords
-    AND easily linkable, and for each anchors found, we're registering
-    the full anchor and its last parts, splitted by dot and dash, so
-    that 'term-lambda' is also known under the 'lambda' key, or
-    'urllib.request.FTPHandler' is also known as 'FTPHandler'.
+    def link_weight(self, doc_link):
+        """Compute the weight of a link.
+        Observed signals are:
+         - Shorter is generally better
+         - Highly visited pages are better
 
-    """
-    doc_url = 'https://docs.python.org/{}/'.format(version)
-    genindex_text = requests.get(doc_url + 'genindex-all.html').text
-    index = {}
-    links = re.findall('href="(.+?#.+?)"', genindex_text)
-
-    def propose_link(keyword, doc_link):
-        """Always get the shortest doc_link.
+        Each criterion is in between 0 and 1 so we can eventually
+        weight them.
         """
-        if keyword not in index or len(doc_link) < len(index[keyword]):
-            index[keyword] = doc_link
+        page_re = re.search(r'\w+\.html', doc_link)
+        page = page_re.group(0) if page_re is not None else ''
+        visit_weight = self.weights_from_number_of_visitors.get(page, 0)
+        length_weight = 1 / math.sqrt(len(doc_link))
+        return length_weight + visit_weight
 
-    for link in links:
-        url, anchor = link.split('#')
-        propose_link(anchor, link)
-        propose_link(anchor.split('.')[-1], link)
-        propose_link(anchor.split('.')[-1].split('-')[-1], link)
-        page_name_match = re.search(r'(\w+)\.html', url)
-        if page_name_match is not None:
-            propose_link(page_name_match.group(1), url)
-    return dict([(key, doc_url + value) for key, value in index.items()])
+    def register(self, doc_link):
+        doc_link_weight = self.link_weight(doc_link)
+        self.links[doc_link] = doc_link_weight
+        if self.best_link is None:
+            self.best_link = doc_link
+        elif doc_link_weight > self.links[self.best_link]:
+            self.best_link = doc_link
+
+
+class PydocIndex:
+    def __init__(self, doc_url):
+        self.doc_url = doc_url
+        self.index = {}
+
+    def get_or_create_entry(self, keyword):
+        keyword = keyword.lower()
+        if keyword not in self.index:
+            self.index[keyword] = PydocIndexEntry(keyword)
+        return self.index[keyword]
+
+    @classmethod
+    @lru_cache(maxsize=16)
+    def load_from(cls, version='3.5'):
+        """Download and parses a genindex-all.html to relevant map of
+        keyword -> URL.
+
+        Idea is to get the shortest (generaly shortest is more releavant,
+        typically:
+        'wait':
+           'library/asyncio-subprocess.html#asyncio.asyncio.subprocess.Process.wait'
+        vs
+        'wait': 'library/os.html#os.wait'
+
+        We're scanning only for HTML anchors, which are relevant keywords
+        AND easily linkable, and for each anchors found, we're registering
+        the full anchor and its last parts, splitted by dot and dash, so
+        that 'term-lambda' is also known under the 'lambda' key, or
+        'urllib.request.FTPHandler' is also known as 'FTPHandler'.
+
+        """
+        doc_url = 'https://docs.python.org/{}/'.format(version)
+        pydoc_index = cls(doc_url)
+        genindex_text = requests.get(doc_url + 'genindex-all.html').text
+        links = re.findall('href="(.+?#.+?)"', genindex_text)
+        for link in links:
+            url, anchor = link.split('#')
+            anchor_chunks = re.split(r'\W', anchor)
+            for chunks in ['.'.join(keywords[-i-1:]) for i, keywords in
+                           enumerate([anchor_chunks] * len(anchor_chunks))]:
+                pydoc_index.get_or_create_entry(chunks).register(link)
+            page_name_match = re.search(r'(\w+)\.html', url)
+            if page_name_match is not None:
+                pydoc_index.get_or_create_entry(page_name_match.group(1)).register(url)
+        return pydoc_index
+
+    def search(self, keyword):
+        try:
+            return self.doc_url + self.index[keyword.lower()].best_link
+        except KeyError:
+            return None
 
 
 def search(keyword, version='3.5'):
@@ -61,7 +115,7 @@ def search(keyword, version='3.5'):
     >>> search('exit')
     'https://docs.python.org/3.5/library/sys.html#sys.exit'
     """
-    return fetch_index(version).get(keyword)
+    return PydocIndex.load_from(version).search(keyword)
 
 
 def main():
@@ -73,9 +127,21 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='Find a docs.python.org URL.')
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--dump', action='store_true',
+                        help="Dump index (to check consistency)")
     parser.add_argument('--version', default='3.5', type=version)
     parser.add_argument('keyword', nargs='?')
     args = parser.parse_args()
+    if args.dump:
+        pydoc_index = PydocIndex.load_from(args.version)
+        for entry in pydoc_index.index.values():
+            print(entry.keyword)
+            for link, link_weight in entry.links.items():
+                print("{} {} {:.2f}".format(
+                    ' -> ' if link == entry.best_link else ' -- ',
+                    link,
+                    link_weight))
+        exit(0)
     if args.test:
         import doctest
         doctest.testmod()
