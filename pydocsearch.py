@@ -6,7 +6,6 @@
 import re
 import math
 import requests
-from collections import defaultdict
 try:
     from functools import lru_cache
 except ImportError:
