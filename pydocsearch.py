@@ -21,7 +21,13 @@ class PydocIndexEntry:
         're.html': .7,
         'datetime.html': .6,
         'builtins.html': .5,
-        'exceptions.html': .1}
+        'exceptions.html': .1,
+        # Manual bonuses:
+        # To get __str__ from datamodel instead of datetime:
+        'datamodel.html': .8,
+        # To get __add__ from operators instead of datamodel:
+        'operator.html': .8
+    }
 
     def __init__(self, keyword):
         self.keyword = keyword
@@ -129,6 +135,8 @@ def main():
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--dump', action='store_true',
                         help="Dump index (to check consistency)")
+    parser.add_argument('--light-dump', action='store_true',
+                        help="Light dump index (to diff)")
     parser.add_argument('--version', default='3.5', type=version)
     parser.add_argument('keyword', nargs='?')
     args = parser.parse_args()
@@ -141,6 +149,12 @@ def main():
                     ' -> ' if link == entry.best_link else ' -- ',
                     link,
                     link_weight))
+        exit(0)
+    if args.light_dump:
+        pydoc_index = PydocIndex.load_from(args.version)
+        for entry in sorted(pydoc_index.index.values(),
+                            key=lambda item: item.keyword):
+            print(entry.keyword, entry.best_link)
         exit(0)
     if args.test:
         import doctest
