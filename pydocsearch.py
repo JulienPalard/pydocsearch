@@ -107,6 +107,9 @@ class PydocIndex:
         return pydoc_index
 
     def search(self, keyword):
+        hardcoded = {'pip': 'installing/index.html'}
+        if keyword in hardcoded:
+            return self.doc_url + hardcoded[keyword]
         try:
             return self.doc_url + self.index[keyword.lower()].best_link
         except KeyError:
