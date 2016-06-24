@@ -13,7 +13,8 @@ except ImportError:
 
 
 class PydocIndexEntry:
-    weights_from_number_of_visitors = {
+    weights = {
+        # From number of visitors:
         'functions.html': 1,
         'glossary.html': 1,
         'stdtypes.html': .9,
@@ -45,7 +46,7 @@ class PydocIndexEntry:
         """
         page_re = re.search(r'\w+\.html', doc_link)
         page = page_re.group(0) if page_re is not None else ''
-        visit_weight = self.weights_from_number_of_visitors.get(page, 0)
+        visit_weight = self.weights.get(page, 0)
         length_weight = 1 / math.sqrt(len(doc_link))
         return length_weight + visit_weight
 
