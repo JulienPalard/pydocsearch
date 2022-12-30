@@ -95,7 +95,10 @@ class PydocIndex:
         genindex_text = requests.get(doc_url + 'genindex-all.html').text
         links = re.findall('href="(.+?#.+?)">([^<]+)</a>', genindex_text)
         for (link, text) in links:
-            url, anchor = link.split('#')
+            try:
+                url, anchor = link.split('#')
+            except ValueError:
+                continue
             anchor_chunks = re.split(r'\W', anchor)
             for chunks in ['.'.join(keywords[-i-1:]) for i, keywords in
                            enumerate([anchor_chunks] * len(anchor_chunks))]:
