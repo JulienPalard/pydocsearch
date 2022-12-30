@@ -110,11 +110,14 @@ class PydocIndex:
         return pydoc_index
 
     def search(self, keyword):
+        keyword = keyword.lower()
         hardcoded = {'pip': 'installing/index.html'}
+        rewrites = {'virtualenv': 'venv'}
+
         if keyword in hardcoded:
             return self.doc_url + hardcoded[keyword]
         try:
-            return self.doc_url + self.index[keyword.lower()].best_link
+            return self.doc_url + self.index[rewrites.get(keyword, keyword)].best_link
         except KeyError:
             return None
 
